@@ -76,11 +76,20 @@ function App() {
         dangerouslyAllowBrowser: true
       })
 
+      const today = new Date().toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+
       const taskInfo = addForm.description
         ? `Task: ${trimmedValue}\nDescription: ${addForm.description.trim()}`
         : `Task: ${trimmedValue}`
 
-      const prompt = `Categorize this task into an Eisenhower Matrix quadrant:
+      const prompt = `Today's date is: ${today}
+
+Categorize this task into an Eisenhower Matrix quadrant:
 
 ${taskInfo}
 
@@ -246,6 +255,13 @@ Respond with ONLY the quadrant key (e.g., "urgent-important"), nothing else.`
         dangerouslyAllowBrowser: true
       })
 
+      const today = new Date().toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+
       const taskDescriptions = allTasks.map(task => {
         let desc = `Task: ${task.text}`
         if (task.description) desc += `\nDescription: ${task.description}`
@@ -253,7 +269,9 @@ Respond with ONLY the quadrant key (e.g., "urgent-important"), nothing else.`
         return desc
       }).join('\n\n')
 
-      const prompt = `You are helping categorize tasks into an Eisenhower Matrix. The matrix has 4 quadrants:
+      const prompt = `Today's date is: ${today}
+
+You are helping categorize tasks into an Eisenhower Matrix. The matrix has 4 quadrants:
 1. "urgent-important": Tasks that are both urgent and important (Do First) - deadlines today/this week, emergencies, critical issues
 2. "not-urgent-important": Tasks that are important but not urgent (Schedule) - long-term goals, future deadlines, strategic work
 3. "urgent-not-important": Tasks that are urgent but not important (Delegate) - interruptions, some meetings, non-critical urgent items
