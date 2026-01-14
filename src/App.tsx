@@ -304,102 +304,51 @@ Only respond with the JSON array, nothing else.`
     setError('')
   }
 
+  // Get non-empty quadrants
+  const nonEmptyQuadrants = (Object.keys(tasks) as Quadrant[]).filter(q => tasks[q].length > 0)
+  const totalTasks = Object.values(tasks).reduce((sum, arr) => sum + arr.length, 0)
+
+  const quadrantConfig: Record<Quadrant, { title: string; label: string }> = {
+    'urgent-important': { title: 'Do First', label: 'Urgent & Important' },
+    'not-urgent-important': { title: 'Schedule', label: 'Not Urgent & Important' },
+    'urgent-not-important': { title: 'Delegate', label: 'Urgent & Not Important' },
+    'not-urgent-not-important': { title: "Don't Do", label: 'Not Urgent & Not Important' }
+  }
+
   return (
     <div className="app">
-      {/* Full-screen Matrix */}
-      <div className="matrix">
-        <div className="quadrant urgent-important">
-          <div className="quadrant-header">
-            <h2>Do First</h2>
-            <span className="quadrant-label">Urgent & Important</span>
-          </div>
-          <ul>
-            {[...tasks['urgent-important']].sort((a, b) => Number(a.completed) - Number(b.completed)).map(task => (
-              <li key={task.id} className={task.completed ? 'completed' : ''}>
-                <input
-                  type="checkbox"
-                  checked={task.completed}
-                  onChange={() => toggleComplete('urgent-important', task.id)}
-                />
-                <div className="task-content" onClick={() => openEditModal(task, 'urgent-important')}>
-                  <span className="task-text">{task.text}</span>
-                  {task.deadline && <span className="task-deadline">{new Date(task.deadline).toLocaleDateString()}</span>}
-                </div>
-                <button className="delete-btn" onClick={() => removeTask('urgent-important', task.id)}>×</button>
-              </li>
-            ))}
-          </ul>
+      {totalTasks === 0 ? (
+        <div className="empty-state">
+          <p>Add a task to start</p>
         </div>
-
-        <div className="quadrant not-urgent-important">
-          <div className="quadrant-header">
-            <h2>Schedule</h2>
-            <span className="quadrant-label">Not Urgent & Important</span>
-          </div>
-          <ul>
-            {[...tasks['not-urgent-important']].sort((a, b) => Number(a.completed) - Number(b.completed)).map(task => (
-              <li key={task.id} className={task.completed ? 'completed' : ''}>
-                <input
-                  type="checkbox"
-                  checked={task.completed}
-                  onChange={() => toggleComplete('not-urgent-important', task.id)}
-                />
-                <div className="task-content" onClick={() => openEditModal(task, 'not-urgent-important')}>
-                  <span className="task-text">{task.text}</span>
-                  {task.deadline && <span className="task-deadline">{new Date(task.deadline).toLocaleDateString()}</span>}
-                </div>
-                <button className="delete-btn" onClick={() => removeTask('not-urgent-important', task.id)}>×</button>
-              </li>
-            ))}
-          </ul>
+      ) : (
+        <div className={`matrix quadrants-${nonEmptyQuadrants.length}`}>
+          {nonEmptyQuadrants.map(quadrant => (
+            <div key={quadrant} className={`quadrant ${quadrant}`}>
+              <div className="quadrant-header">
+                <h2>{quadrantConfig[quadrant].title}</h2>
+                <span className="quadrant-label">{quadrantConfig[quadrant].label}</span>
+              </div>
+              <ul>
+                {[...tasks[quadrant]].sort((a, b) => Number(a.completed) - Number(b.completed)).map(task => (
+                  <li key={task.id} className={task.completed ? 'completed' : ''}>
+                    <input
+                      type="checkbox"
+                      checked={task.completed}
+                      onChange={() => toggleComplete(quadrant, task.id)}
+                    />
+                    <div className="task-content" onClick={() => openEditModal(task, quadrant)}>
+                      <span className="task-text">{task.text}</span>
+                      {task.deadline && <span className="task-deadline">{new Date(task.deadline).toLocaleDateString()}</span>}
+                    </div>
+                    <button className="delete-btn" onClick={() => removeTask(quadrant, task.id)}>×</button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
-
-        <div className="quadrant urgent-not-important">
-          <div className="quadrant-header">
-            <h2>Delegate</h2>
-            <span className="quadrant-label">Urgent & Not Important</span>
-          </div>
-          <ul>
-            {[...tasks['urgent-not-important']].sort((a, b) => Number(a.completed) - Number(b.completed)).map(task => (
-              <li key={task.id} className={task.completed ? 'completed' : ''}>
-                <input
-                  type="checkbox"
-                  checked={task.completed}
-                  onChange={() => toggleComplete('urgent-not-important', task.id)}
-                />
-                <div className="task-content" onClick={() => openEditModal(task, 'urgent-not-important')}>
-                  <span className="task-text">{task.text}</span>
-                  {task.deadline && <span className="task-deadline">{new Date(task.deadline).toLocaleDateString()}</span>}
-                </div>
-                <button className="delete-btn" onClick={() => removeTask('urgent-not-important', task.id)}>×</button>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="quadrant not-urgent-not-important">
-          <div className="quadrant-header">
-            <h2>Don't Do</h2>
-            <span className="quadrant-label">Not Urgent & Not Important</span>
-          </div>
-          <ul>
-            {[...tasks['not-urgent-not-important']].sort((a, b) => Number(a.completed) - Number(b.completed)).map(task => (
-              <li key={task.id} className={task.completed ? 'completed' : ''}>
-                <input
-                  type="checkbox"
-                  checked={task.completed}
-                  onChange={() => toggleComplete('not-urgent-not-important', task.id)}
-                />
-                <div className="task-content" onClick={() => openEditModal(task, 'not-urgent-not-important')}>
-                  <span className="task-text">{task.text}</span>
-                  {task.deadline && <span className="task-deadline">{new Date(task.deadline).toLocaleDateString()}</span>}
-                </div>
-                <button className="delete-btn" onClick={() => removeTask('not-urgent-not-important', task.id)}>×</button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
+      )}
 
       {/* Floating Action Button */}
       <div className="fab-container">
