@@ -440,6 +440,19 @@
   min-height: 80px;
 }
 
+.form-group {
+  position: relative;
+}
+
+.char-count {
+  position: absolute;
+  bottom: 8px;
+  right: 12px;
+  font-size: 0.75rem;
+  color: #9ca3af;
+  pointer-events: none;
+}
+
 .deadline-field {
   display: flex;
   align-items: center;
@@ -524,10 +537,15 @@
   color: white;
 }
 
-.save-btn:hover {
+.save-btn:hover:not(:disabled) {
   opacity: 0.9;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Mobile Responsive */

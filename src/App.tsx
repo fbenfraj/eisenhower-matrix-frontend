@@ -34,7 +34,7 @@ function App() {
   // FAB and Add Task Modal state
   const [isFabOpen, setIsFabOpen] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
-  const [addForm, setAddForm] = useState({ text: '', description: '' })
+  const [addForm, setAddForm] = useState({ input: '' })
   const [isAddingTask, setIsAddingTask] = useState(false)
   const [error, setError] = useState('')
 
@@ -55,15 +55,15 @@ function App() {
   }, [isFabOpen])
 
   const addTask = async () => {
-    const trimmedValue = addForm.text.trim()
+    const trimmedInput = addForm.input.trim()
 
-    if (trimmedValue === '') {
-      setError('Task cannot be empty')
+    if (trimmedInput === '') {
+      setError('Please describe your task')
       return
     }
 
-    if (trimmedValue.length > 200) {
-      setError('Task must be 200 characters or less')
+    if (trimmedInput.length > 500) {
+      setError('Input must be 500 characters or less')
       return
     }
 
@@ -76,46 +76,67 @@ function App() {
         dangerouslyAllowBrowser: true
       })
 
-      const today = new Date().toLocaleDateString('en-US', {
+      const today = new Date()
+      const todayStr = today.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
         day: 'numeric'
       })
 
-      const taskInfo = addForm.description
-        ? `Task: ${trimmedValue}\nDescription: ${addForm.description.trim()}`
-        : `Task: ${trimmedValue}`
+      const prompt = `Today's date is: ${todayStr}
 
-      const prompt = `Today's date is: ${today}
+Extract task details from this user input and categorize it into an Eisenhower Matrix quadrant.
 
-Categorize this task into an Eisenhower Matrix quadrant:
+User input: "${trimmedInput}"
 
-${taskInfo}
+You must respond with ONLY a valid JSON object (no markdown, no explanation) with these exact fields:
+{
+  "title": "short task title (max 50 chars)",
+  "description": "additional details or empty string if none",
+  "deadline": "YYYY-MM-DD format or null if no deadline mentioned",
+  "quadrant": "one of: urgent-important, not-urgent-important, urgent-not-important, not-urgent-not-important"
+}
 
-Quadrants:
-1. "urgent-important": Urgent AND important - emergencies, deadlines, crises
-2. "not-urgent-important": Important but NOT urgent - long-term goals, planning, self-improvement
-3. "urgent-not-important": Urgent but NOT important - interruptions, some calls/emails
-4. "not-urgent-not-important": Neither urgent nor important - time wasters, trivial tasks
+Quadrant rules:
+- "urgent-important": Deadlines within 2 days, emergencies, crises, critical issues
+- "not-urgent-important": Important goals, deadlines > 2 days away, planning, learning, health
+- "urgent-not-important": Minor urgent items, some calls/emails, interruptions
+- "not-urgent-not-important": Low priority, trivial tasks, entertainment, time wasters
 
-Respond with ONLY the quadrant key (e.g., "urgent-important"), nothing else.`
+Date interpretation:
+- "today" = ${today.toISOString().split('T')[0]}
+- "tomorrow" = ${new Date(today.getTime() + 86400000).toISOString().split('T')[0]}
+- "next week" = ${new Date(today.getTime() + 7 * 86400000).toISOString().split('T')[0]}
+- "next month" = ${new Date(today.getFullYear(), today.getMonth() + 1, today.getDate()).toISOString().split('T')[0]}
+
+Respond with ONLY the JSON object.`
 
       const response = await openai.chat.completions.create({
         model: 'gpt-3.5-turbo',
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3,
-        max_tokens: 50
+        temperature: 0,
+        max_tokens: 200
       })
 
-      const result = response.choices[0].message.content?.trim() as Quadrant
+      const result = response.choices[0].message.content?.trim()
+      if (!result) throw new Error('No response from AI')
+
+      const parsed = JSON.parse(result) as {
+        title: string
+        description: string
+        deadline: string | null
+        quadrant: Quadrant
+      }
+
       const validQuadrants: Quadrant[] = ['urgent-important', 'not-urgent-important', 'urgent-not-important', 'not-urgent-not-important']
-      const quadrant = validQuadrants.includes(result) ? result : 'not-urgent-not-important'
+      const quadrant = validQuadrants.includes(parsed.quadrant) ? parsed.quadrant : 'not-urgent-not-important'
 
       const newTask: Task = {
         id: Date.now(),
-        text: trimmedValue,
-        description: addForm.description.trim() || undefined,
+        text: parsed.title.slice(0, 100),
+        description: parsed.description || undefined,
+        deadline: parsed.deadline || undefined,
         completed: false
       }
 
@@ -124,11 +145,11 @@ Respond with ONLY the quadrant key (e.g., "urgent-important"), nothing else.`
         [quadrant]: [...prev[quadrant], newTask]
       }))
 
-      setAddForm({ text: '', description: '' })
+      setAddForm({ input: '' })
       setShowAddModal(false)
     } catch (err) {
       console.error('AI categorization error:', err)
-      setError('Failed to categorize task. Please try again.')
+      setError('Failed to process task. Please try again.')
     } finally {
       setIsAddingTask(false)
     }
@@ -339,7 +360,7 @@ Only respond with the JSON array, nothing else.`
 
   const closeAddModal = () => {
     setShowAddModal(false)
-    setAddForm({ text: '', description: '' })
+    setAddForm({ input: '' })
     setError('')
   }
 
@@ -440,32 +461,21 @@ Only respond with the JSON array, nothing else.`
             <h2>Add Task</h2>
             <div className="modal-form">
               <div className="form-group">
-                <label>Task Name</label>
-                <input
-                  type="text"
-                  value={addForm.text}
-                  onChange={(e) => setAddForm({ ...addForm, text: e.target.value })}
-                  placeholder="What needs to be done?"
-                  maxLength={200}
+                <textarea
+                  value={addForm.input}
+                  onChange={(e) => setAddForm({ input: e.target.value })}
+                  placeholder="Describe your task... (e.g., 'Submit report by Friday' or 'Learn Spanish for vacation next month')"
+                  rows={4}
+                  maxLength={500}
                   autoFocus
                   disabled={isAddingTask}
                 />
-              </div>
-              <div className="form-group">
-                <label>Description (optional)</label>
-                <textarea
-                  value={addForm.description}
-                  onChange={(e) => setAddForm({ ...addForm, description: e.target.value })}
-                  placeholder="Add more details..."
-                  rows={3}
-                  maxLength={500}
-                  disabled={isAddingTask}
-                />
+                <span className="char-count">{addForm.input.length}/500</span>
               </div>
               <div className="modal-actions">
                 <button onClick={closeAddModal} className="cancel-btn" disabled={isAddingTask}>Cancel</button>
-                <button onClick={addTask} className="save-btn" disabled={isAddingTask}>
-                  {isAddingTask ? 'Adding...' : 'Add Task'}
+                <button onClick={addTask} className="save-btn" disabled={isAddingTask || !addForm.input.trim()}>
+                  {isAddingTask ? 'Processing...' : 'Add'}
                 </button>
               </div>
             </div>
