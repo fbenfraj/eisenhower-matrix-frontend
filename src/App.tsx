@@ -44,15 +44,24 @@ type Task = {
   completedAt?: string // ISO date string of when task was completed
   recurrence?: TaskRecurrence
   complexity?: Complexity
+  showAfter?: string // ISO date string - task is hidden until this date (for recurring tasks)
 }
 
 type Quadrant = 'urgent-important' | 'not-urgent-important' | 'urgent-not-important' | 'not-urgent-not-important'
 
 const STORAGE_KEY = 'eisenhower-matrix-tasks'
 
-// Check if a task should be visible (hide all completed tasks)
+// Check if a task should be visible (hide completed tasks and future recurring tasks)
 const isTaskVisible = (task: Task): boolean => {
-  return !task.completed
+  if (task.completed) return false
+
+  // Hide recurring tasks that aren't due yet
+  if (task.showAfter) {
+    const today = new Date().toISOString().split('T')[0]
+    if (task.showAfter > today) return false
+  }
+
+  return true
 }
 
 // Get days in a month
@@ -654,10 +663,14 @@ Respond with ONLY the JSON object.`
 
       // If completing a recurring task, create the next occurrence
       if (isCompleting && task.recurrence) {
-        // Only calculate next deadline if the original task had one
+        // Calculate when the next occurrence should appear
+        const nextOccurrenceDate = calculateNextDeadline(today, task.recurrence)
+
+        // Only set deadline if the original task had one
         const nextDeadline = task.deadline
           ? calculateNextDeadline(task.deadline, task.recurrence)
           : undefined
+
         const nextTask: Task = {
           id: Date.now(),
           text: task.text,
@@ -665,7 +678,8 @@ Respond with ONLY the JSON object.`
           deadline: nextDeadline,
           completed: false,
           recurrence: task.recurrence,
-          complexity: task.complexity
+          complexity: task.complexity,
+          showAfter: nextOccurrenceDate // Hide until the next occurrence date
         }
 
         return {
