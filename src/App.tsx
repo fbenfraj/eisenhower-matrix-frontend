@@ -415,10 +415,15 @@ function App() {
   // Focus textarea when add modal opens (with delay for mobile PWA keyboard)
   useEffect(() => {
     if (showAddModal && addTaskTextareaRef.current) {
-      const timer = setTimeout(() => {
+      // Use requestAnimationFrame for better PWA compatibility
+      // This keeps us closer to the user gesture chain
+      requestAnimationFrame(() => {
         addTaskTextareaRef.current?.focus()
-      }, 100)
-      return () => clearTimeout(timer)
+        // Double-call focus as fallback for stubborn PWAs
+        requestAnimationFrame(() => {
+          addTaskTextareaRef.current?.focus()
+        })
+      })
     }
   }, [showAddModal])
 
@@ -1116,6 +1121,12 @@ Only respond with the JSON array, nothing else.`
                   rows={4}
                   maxLength={500}
                   disabled={isAddingTask}
+                  autoFocus
+                  inputMode="text"
+                  onTouchEnd={(e) => {
+                    // Ensure focus on touch for PWA
+                    e.currentTarget.focus()
+                  }}
                 />
                 <span className="char-count">{addForm.input.length}/500</span>
               </div>
