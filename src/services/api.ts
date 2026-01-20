@@ -1,5 +1,5 @@
 import type { Task, Quadrant } from '../types'
-import { getStoredToken } from './auth'
+import { getStoredToken, clearAuth } from './auth'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
@@ -12,6 +12,13 @@ function getAuthHeaders(): HeadersInit {
   return headers
 }
 
+function handleUnauthorized(response: Response): void {
+  if (response.status === 401) {
+    clearAuth()
+    window.location.href = '/login'
+  }
+}
+
 export type ApiTask = Task & { quadrant: Quadrant }
 
 export async function fetchTasks(): Promise<ApiTask[]> {
@@ -19,6 +26,7 @@ export async function fetchTasks(): Promise<ApiTask[]> {
     headers: getAuthHeaders()
   })
   if (!response.ok) {
+    handleUnauthorized(response)
     throw new Error('Failed to fetch tasks')
   }
   return response.json()
@@ -31,6 +39,7 @@ export async function createTask(task: Omit<ApiTask, 'id' | 'completed' | 'compl
     body: JSON.stringify(task),
   })
   if (!response.ok) {
+    handleUnauthorized(response)
     throw new Error('Failed to create task')
   }
   return response.json()
@@ -43,6 +52,7 @@ export async function updateTask(id: number, updates: Partial<ApiTask>): Promise
     body: JSON.stringify(updates),
   })
   if (!response.ok) {
+    handleUnauthorized(response)
     throw new Error('Failed to update task')
   }
   return response.json()
@@ -54,6 +64,7 @@ export async function deleteTask(id: number): Promise<void> {
     headers: getAuthHeaders(),
   })
   if (!response.ok) {
+    handleUnauthorized(response)
     throw new Error('Failed to delete task')
   }
 }
@@ -74,6 +85,7 @@ export async function parseTaskWithAI(input: string): Promise<ParsedTaskResponse
     body: JSON.stringify({ input }),
   })
   if (!response.ok) {
+    handleUnauthorized(response)
     throw new Error('Failed to parse task with AI')
   }
   return response.json()
@@ -101,6 +113,7 @@ export async function sortTasksWithAI(tasks: TaskForSort[]): Promise<SortedTaskR
     body: JSON.stringify({ tasks }),
   })
   if (!response.ok) {
+    handleUnauthorized(response)
     throw new Error('Failed to sort tasks with AI')
   }
   return response.json()
