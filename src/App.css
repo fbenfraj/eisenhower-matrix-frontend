@@ -712,6 +712,7 @@
     flex-direction: column;
     gap: 1px;
     overflow-y: auto;
+    background-color: #fff;
   }
 
   .matrix.quadrants-1,
