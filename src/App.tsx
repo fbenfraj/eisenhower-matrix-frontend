@@ -4,6 +4,14 @@ import './App.css'
 
 type RecurrencePattern = 'daily' | 'weekly' | 'monthly' | 'yearly' | null
 
+type Complexity = 'easy' | 'medium' | 'hard'
+
+const COMPLEXITY_ORDER: Record<Complexity, number> = {
+  easy: 1,
+  medium: 2,
+  hard: 3
+}
+
 type Task = {
   id: number
   text: string
@@ -12,6 +20,7 @@ type Task = {
   completed: boolean
   completedAt?: string // ISO date string of when task was completed
   recurrence?: RecurrencePattern
+  complexity?: Complexity
 }
 
 type Quadrant = 'urgent-important' | 'not-urgent-important' | 'urgent-not-important' | 'not-urgent-not-important'
@@ -66,7 +75,7 @@ function App() {
   })
   const [isAiSorting, setIsAiSorting] = useState(false)
   const [editingTask, setEditingTask] = useState<{ task: Task; quadrant: Quadrant } | null>(null)
-  const [editForm, setEditForm] = useState({ text: '', description: '', deadline: '', isUrgent: false, isImportant: false, recurrence: null as RecurrencePattern })
+  const [editForm, setEditForm] = useState({ text: '', description: '', deadline: '', isUrgent: false, isImportant: false, recurrence: null as RecurrencePattern, complexity: 'medium' as Complexity })
 
   // FAB and Add Task Modal state
   const [isFabOpen, setIsFabOpen] = useState(false)
@@ -133,7 +142,8 @@ You must respond with ONLY a valid JSON object (no markdown, no explanation) wit
   "description": "additional details or empty string if none",
   "deadline": "YYYY-MM-DD format or null if no deadline mentioned",
   "quadrant": "one of: urgent-important, not-urgent-important, urgent-not-important, not-urgent-not-important",
-  "recurrence": "one of: daily, weekly, monthly, yearly, or null if not recurring"
+  "recurrence": "one of: daily, weekly, monthly, yearly, or null if not recurring",
+  "complexity": "one of: easy, medium, hard"
 }
 
 Quadrant rules:
@@ -148,6 +158,11 @@ Recurrence detection:
 - "monthly": phrases like "every month", "monthly", "each month"
 - "yearly": phrases like "every year", "yearly", "annually", "each year"
 - null: no recurring pattern detected
+
+Complexity rules:
+- "easy": Quick tasks (< 15 min), simple actions, minimal thinking required
+- "medium": Moderate effort (15 min - 2 hours), some planning needed
+- "hard": Significant effort (> 2 hours), complex, multiple steps, deep focus required
 
 For recurring tasks: if no explicit deadline is mentioned, set deadline to today's date (${today.toISOString().split('T')[0]}).
 
@@ -175,6 +190,7 @@ Respond with ONLY the JSON object.`
         deadline: string | null
         quadrant: Quadrant
         recurrence: RecurrencePattern
+        complexity: Complexity
       }
 
       const validQuadrants: Quadrant[] = ['urgent-important', 'not-urgent-important', 'urgent-not-important', 'not-urgent-not-important']
@@ -183,13 +199,17 @@ Respond with ONLY the JSON object.`
       const validRecurrences: RecurrencePattern[] = ['daily', 'weekly', 'monthly', 'yearly', null]
       const recurrence = validRecurrences.includes(parsed.recurrence) ? parsed.recurrence : null
 
+      const validComplexities: Complexity[] = ['easy', 'medium', 'hard']
+      const complexity = validComplexities.includes(parsed.complexity) ? parsed.complexity : 'medium'
+
       const newTask: Task = {
         id: Date.now(),
         text: parsed.title.slice(0, 100),
         description: parsed.description || undefined,
         deadline: parsed.deadline || undefined,
         completed: false,
-        recurrence: recurrence || undefined
+        recurrence: recurrence || undefined,
+        complexity
       }
 
       setTasks(prev => ({
@@ -231,7 +251,8 @@ Respond with ONLY the JSON object.`
           description: task.description,
           deadline: nextDeadline,
           completed: false,
-          recurrence: task.recurrence
+          recurrence: task.recurrence,
+          complexity: task.complexity
         }
 
         return {
@@ -270,13 +291,14 @@ Respond with ONLY the JSON object.`
       deadline: task.deadline || '',
       isUrgent,
       isImportant,
-      recurrence: task.recurrence || null
+      recurrence: task.recurrence || null,
+      complexity: task.complexity || 'medium'
     })
   }
 
   const closeEditModal = () => {
     setEditingTask(null)
-    setEditForm({ text: '', description: '', deadline: '', isUrgent: false, isImportant: false, recurrence: null })
+    setEditForm({ text: '', description: '', deadline: '', isUrgent: false, isImportant: false, recurrence: null, complexity: 'medium' })
   }
 
   const saveTaskEdit = () => {
@@ -303,7 +325,8 @@ Respond with ONLY the JSON object.`
       text: editForm.text.trim(),
       description: editForm.description.trim() || undefined,
       deadline: editForm.deadline || undefined,
-      recurrence: editForm.recurrence || undefined
+      recurrence: editForm.recurrence || undefined,
+      complexity: editForm.complexity
     }
 
     if (newQuadrant !== editingTask.quadrant) {
@@ -377,6 +400,7 @@ Respond with ONLY the JSON object.`
         let desc = `Task: ${task.text}`
         if (task.description) desc += `\nDescription: ${task.description}`
         if (task.deadline) desc += `\nDeadline: ${task.deadline}`
+        if (task.complexity) desc += `\nCurrent complexity: ${task.complexity}`
         return desc
       }).join('\n\n')
 
@@ -393,12 +417,18 @@ Consider deadlines when categorizing:
 - Tasks with deadlines next month or later are typically not urgent
 - Tasks without deadlines should be judged on their inherent urgency and importance
 
+Complexity rules:
+- "easy": Quick tasks (< 15 min), simple actions, minimal thinking required
+- "medium": Moderate effort (15 min - 2 hours), some planning needed
+- "hard": Significant effort (> 2 hours), complex, multiple steps, deep focus required
+
 Here are the tasks to categorize:
 ${taskDescriptions}
 
-For each task, determine which quadrant it belongs to. Respond with a JSON array where each element has:
+For each task, determine which quadrant it belongs to and assess its complexity. Respond with a JSON array where each element has:
 - "text": the exact task text (match it precisely)
 - "quadrant": one of "urgent-important", "not-urgent-important", "urgent-not-important", or "not-urgent-not-important"
+- "complexity": one of "easy", "medium", or "hard"
 
 Only respond with the JSON array, nothing else.`
 
@@ -411,7 +441,7 @@ Only respond with the JSON array, nothing else.`
       const result = response.choices[0].message.content
       if (!result) throw new Error('No response from AI')
 
-      const categorizedTasks = JSON.parse(result) as { text: string; quadrant: Quadrant }[]
+      const categorizedTasks = JSON.parse(result) as { text: string; quadrant: Quadrant; complexity: Complexity }[]
 
       const newTasks: Record<Quadrant, Task[]> = {
         'urgent-important': [],
@@ -420,16 +450,21 @@ Only respond with the JSON array, nothing else.`
         'not-urgent-not-important': []
       }
 
+      const validComplexities: Complexity[] = ['easy', 'medium', 'hard']
+
       categorizedTasks.forEach(categorized => {
         const originalTask = allTasks.find(t => t.text === categorized.text)
         if (originalTask) {
+          const complexity = validComplexities.includes(categorized.complexity) ? categorized.complexity : 'medium'
           newTasks[categorized.quadrant].push({
             id: originalTask.id,
             text: originalTask.text,
             description: originalTask.description,
             deadline: originalTask.deadline,
             completed: originalTask.completed,
-            recurrence: originalTask.recurrence
+            recurrence: originalTask.recurrence,
+            completedAt: originalTask.completedAt,
+            complexity
           })
         }
       })
@@ -489,7 +524,16 @@ Only respond with the JSON array, nothing else.`
                 <span className="quadrant-label">{quadrantConfig[quadrant].label}</span>
               </div>
               <ul>
-                {[...visibleTasks[quadrant]].sort((a, b) => Number(a.completed) - Number(b.completed)).map(task => (
+                {[...visibleTasks[quadrant]].sort((a, b) => {
+                  // First sort by completion status (incomplete first)
+                  const completionDiff = Number(a.completed) - Number(b.completed)
+                  if (completionDiff !== 0) return completionDiff
+
+                  // Then sort by complexity (easiest first)
+                  const aComplexity = COMPLEXITY_ORDER[a.complexity || 'medium']
+                  const bComplexity = COMPLEXITY_ORDER[b.complexity || 'medium']
+                  return aComplexity - bComplexity
+                }).map(task => (
                   <li key={task.id} className={task.completed ? 'completed' : ''}>
                     <input
                       type="checkbox"
@@ -498,6 +542,8 @@ Only respond with the JSON array, nothing else.`
                     />
                     <div className="task-content" onClick={() => openEditModal(task, quadrant)}>
                       {task.recurrence && <span className="recurrence-icon">↻</span>}
+                      {task.complexity === 'easy' && <span className="complexity-badge complexity-easy">●</span>}
+                      {task.complexity === 'hard' && <span className="complexity-badge complexity-hard">●●●</span>}
                       <span className="task-text">{task.text}</span>
                       {task.deadline && <span className="task-deadline">{new Date(task.deadline).toLocaleDateString()}</span>}
                     </div>
@@ -630,6 +676,18 @@ Only respond with the JSON array, nothing else.`
                   <option value="weekly">Weekly</option>
                   <option value="monthly">Monthly</option>
                   <option value="yearly">Yearly</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Complexity</label>
+                <select
+                  value={editForm.complexity}
+                  onChange={(e) => setEditForm({ ...editForm, complexity: e.target.value as Complexity })}
+                  className="complexity-select"
+                >
+                  <option value="easy">Easy (quick task)</option>
+                  <option value="medium">Medium (moderate effort)</option>
+                  <option value="hard">Hard (significant effort)</option>
                 </select>
               </div>
               <div className="form-group">

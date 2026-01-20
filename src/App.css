@@ -180,6 +180,33 @@
   border-radius: 4px;
 }
 
+/* Complexity Badge */
+.complexity-badge {
+  font-size: 0.65rem;
+  flex-shrink: 0;
+  letter-spacing: -1px;
+}
+
+.complexity-easy {
+  color: #22c55e;
+}
+
+.complexity-hard {
+  color: #ef4444;
+}
+
+/* Complexity Select in Modal */
+.complexity-select {
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  background-color: white;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
 .quadrant li.completed .task-text {
   text-decoration: line-through;
   opacity: 0.5;
