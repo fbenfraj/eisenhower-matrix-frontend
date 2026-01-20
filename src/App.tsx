@@ -2,7 +2,30 @@ import { useState, useEffect } from 'react'
 import OpenAI from 'openai'
 import './App.css'
 
-type RecurrencePattern = 'daily' | 'weekly' | 'monthly' | 'yearly' | null
+// Legacy recurrence type for backwards compatibility
+type LegacyRecurrencePattern = 'daily' | 'weekly' | 'monthly' | 'yearly'
+
+// Days of the week (0 = Sunday, 6 = Saturday)
+type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6
+
+// Recurrence frequency unit
+type RecurrenceUnit = 'day' | 'week' | 'month' | 'year'
+
+// Flexible recurrence configuration
+interface RecurrenceConfig {
+  interval: number // Every X units (e.g., every 2 weeks)
+  unit: RecurrenceUnit
+  weekDays?: DayOfWeek[] // For weekly: specific days (e.g., [1, 3] = Mon, Wed)
+  monthDay?: number // For monthly: specific day (e.g., 15 = 15th of month)
+}
+
+// Task recurrence can be legacy string or flexible config
+type TaskRecurrence = LegacyRecurrencePattern | RecurrenceConfig | null
+
+// Type guard
+const isLegacyRecurrence = (recurrence: TaskRecurrence): recurrence is LegacyRecurrencePattern => {
+  return typeof recurrence === 'string'
+}
 
 type Complexity = 'easy' | 'medium' | 'hard'
 
@@ -19,7 +42,7 @@ type Task = {
   deadline?: string
   completed: boolean
   completedAt?: string // ISO date string of when task was completed
-  recurrence?: RecurrencePattern
+  recurrence?: TaskRecurrence
   complexity?: Complexity
 }
 
@@ -35,11 +58,44 @@ const isTaskVisible = (task: Task): boolean => {
   return task.completedAt === today
 }
 
-const calculateNextDeadline = (
-  currentDeadline: string | undefined,
-  recurrence: 'daily' | 'weekly' | 'monthly' | 'yearly'
+// Get days in a month
+const getDaysInMonth = (date: Date): number => {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+}
+
+// Find next occurrence on specified weekdays
+const findNextWeekdayOccurrence = (
+  baseDate: Date,
+  weekInterval: number,
+  weekDays: DayOfWeek[]
 ): string => {
-  const baseDate = currentDeadline ? new Date(currentDeadline) : new Date()
+  const sortedDays = [...weekDays].sort((a, b) => a - b)
+  const currentDay = baseDate.getDay() as DayOfWeek
+
+  const nextDate = new Date(baseDate)
+
+  // Check if there's another day this week (after current day)
+  const nextDayThisWeek = sortedDays.find(d => d > currentDay)
+
+  if (nextDayThisWeek !== undefined && weekInterval === 1) {
+    // Move to next day this week
+    const daysToAdd = nextDayThisWeek - currentDay
+    nextDate.setDate(nextDate.getDate() + daysToAdd)
+  } else {
+    // Move to first day of next interval week
+    const daysUntilNextWeek = 7 - currentDay + sortedDays[0]
+    const additionalWeeks = (weekInterval - 1) * 7
+    nextDate.setDate(nextDate.getDate() + daysUntilNextWeek + additionalWeeks)
+  }
+
+  return nextDate.toISOString().split('T')[0]
+}
+
+// Calculate next deadline for legacy patterns
+const calculateLegacyNextDeadline = (
+  baseDate: Date,
+  recurrence: LegacyRecurrencePattern
+): string => {
   const nextDate = new Date(baseDate)
 
   switch (recurrence) {
@@ -60,6 +116,228 @@ const calculateNextDeadline = (
   return nextDate.toISOString().split('T')[0]
 }
 
+// Calculate next deadline for flexible patterns
+const calculateFlexibleNextDeadline = (
+  baseDate: Date,
+  config: RecurrenceConfig
+): string => {
+  const nextDate = new Date(baseDate)
+  const { interval, unit, weekDays, monthDay } = config
+
+  switch (unit) {
+    case 'day':
+      nextDate.setDate(nextDate.getDate() + interval)
+      break
+
+    case 'week':
+      if (weekDays && weekDays.length > 0) {
+        return findNextWeekdayOccurrence(baseDate, interval, weekDays)
+      } else {
+        nextDate.setDate(nextDate.getDate() + (interval * 7))
+      }
+      break
+
+    case 'month':
+      nextDate.setMonth(nextDate.getMonth() + interval)
+      if (monthDay !== undefined && monthDay !== null) {
+        const targetDay = Math.min(monthDay, getDaysInMonth(nextDate))
+        nextDate.setDate(targetDay)
+      }
+      break
+
+    case 'year':
+      nextDate.setFullYear(nextDate.getFullYear() + interval)
+      break
+  }
+
+  return nextDate.toISOString().split('T')[0]
+}
+
+// Main function to calculate next deadline
+const calculateNextDeadline = (
+  currentDeadline: string | undefined,
+  recurrence: TaskRecurrence
+): string => {
+  if (!recurrence) {
+    throw new Error('Recurrence pattern is required')
+  }
+
+  const baseDate = currentDeadline ? new Date(currentDeadline) : new Date()
+
+  // Handle legacy string patterns
+  if (isLegacyRecurrence(recurrence)) {
+    return calculateLegacyNextDeadline(baseDate, recurrence)
+  }
+
+  // Handle flexible config
+  return calculateFlexibleNextDeadline(baseDate, recurrence)
+}
+
+// Day names for display
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+
+// Get ordinal suffix (1st, 2nd, 3rd, etc.)
+const getOrdinalSuffix = (n: number): string => {
+  const s = ['th', 'st', 'nd', 'rd']
+  const v = n % 100
+  return s[(v - 20) % 10] || s[v] || s[0]
+}
+
+// Generate human-readable recurrence description
+const getRecurrenceDescription = (recurrence: TaskRecurrence): string => {
+  if (!recurrence) return ''
+
+  if (isLegacyRecurrence(recurrence)) {
+    const descriptions: Record<LegacyRecurrencePattern, string> = {
+      daily: 'Daily',
+      weekly: 'Weekly',
+      monthly: 'Monthly',
+      yearly: 'Yearly'
+    }
+    return descriptions[recurrence]
+  }
+
+  const { interval, unit, weekDays, monthDay } = recurrence
+
+  // Handle weekday-specific patterns
+  if (unit === 'week' && weekDays && weekDays.length > 0) {
+    const dayList = weekDays.map(d => DAY_NAMES[d]).join(', ')
+
+    if (weekDays.length === 5 && weekDays.every((d, i) => d === i + 1)) {
+      return interval === 1 ? 'Weekdays' : `Every ${interval} weeks (weekdays)`
+    }
+
+    if (weekDays.length === 2 && weekDays.includes(0) && weekDays.includes(6)) {
+      return interval === 1 ? 'Weekends' : `Every ${interval} weeks (weekends)`
+    }
+
+    return interval === 1 ? `Every ${dayList}` : `Every ${interval} weeks on ${dayList}`
+  }
+
+  // Handle month-day specific patterns
+  if (unit === 'month' && monthDay) {
+    const suffix = getOrdinalSuffix(monthDay)
+    return interval === 1
+      ? `${monthDay}${suffix} of each month`
+      : `${monthDay}${suffix} every ${interval} months`
+  }
+
+  // Simple interval patterns
+  if (interval === 1) {
+    const simpleLabels: Record<RecurrenceUnit, string> = {
+      day: 'Daily',
+      week: 'Weekly',
+      month: 'Monthly',
+      year: 'Yearly'
+    }
+    return simpleLabels[unit]
+  }
+
+  if (interval === 2) {
+    const biLabels: Record<RecurrenceUnit, string> = {
+      day: 'Every other day',
+      week: 'Biweekly',
+      month: 'Bimonthly',
+      year: 'Biannual'
+    }
+    return biLabels[unit]
+  }
+
+  const unitLabels: Record<RecurrenceUnit, string> = {
+    day: 'days',
+    week: 'weeks',
+    month: 'months',
+    year: 'years'
+  }
+
+  return `Every ${interval} ${unitLabels[unit]}`
+}
+
+// Recurrence form state type
+interface RecurrenceFormState {
+  enabled: boolean
+  preset: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom' | null
+  interval: number
+  unit: RecurrenceUnit
+  weekDays: DayOfWeek[]
+  monthDay: number | null
+  useSpecificMonthDay: boolean
+}
+
+// Default recurrence form state
+const defaultRecurrenceForm: RecurrenceFormState = {
+  enabled: false,
+  preset: null,
+  interval: 1,
+  unit: 'week',
+  weekDays: [],
+  monthDay: null,
+  useSpecificMonthDay: false
+}
+
+// Build RecurrenceConfig from form state
+const buildRecurrenceConfig = (formState: RecurrenceFormState): TaskRecurrence => {
+  if (!formState.enabled) return null
+
+  // For simple presets, return legacy string for backwards compatibility
+  if (formState.preset && formState.preset !== 'custom') {
+    return formState.preset // 'daily' | 'weekly' | 'monthly' | 'yearly'
+  }
+
+  // Build flexible config
+  const config: RecurrenceConfig = {
+    interval: formState.interval,
+    unit: formState.unit
+  }
+
+  if (formState.unit === 'week' && formState.weekDays.length > 0) {
+    config.weekDays = formState.weekDays
+  }
+
+  if (formState.unit === 'month' && formState.useSpecificMonthDay && formState.monthDay) {
+    config.monthDay = formState.monthDay
+  }
+
+  return config
+}
+
+// Parse recurrence config to form state
+const parseRecurrenceToFormState = (recurrence: TaskRecurrence): RecurrenceFormState => {
+  if (!recurrence) {
+    return { ...defaultRecurrenceForm }
+  }
+
+  if (isLegacyRecurrence(recurrence)) {
+    const unitMap: Record<LegacyRecurrencePattern, RecurrenceUnit> = {
+      daily: 'day',
+      weekly: 'week',
+      monthly: 'month',
+      yearly: 'year'
+    }
+    return {
+      enabled: true,
+      preset: recurrence,
+      interval: 1,
+      unit: unitMap[recurrence],
+      weekDays: [],
+      monthDay: null,
+      useSpecificMonthDay: false
+    }
+  }
+
+  // Flexible config
+  return {
+    enabled: true,
+    preset: 'custom',
+    interval: recurrence.interval,
+    unit: recurrence.unit,
+    weekDays: recurrence.weekDays || [],
+    monthDay: recurrence.monthDay ?? null,
+    useSpecificMonthDay: recurrence.monthDay !== undefined
+  }
+}
+
 function App() {
   const [tasks, setTasks] = useState<Record<Quadrant, Task[]>>(() => {
     const saved = localStorage.getItem(STORAGE_KEY)
@@ -75,7 +353,15 @@ function App() {
   })
   const [isAiSorting, setIsAiSorting] = useState(false)
   const [editingTask, setEditingTask] = useState<{ task: Task; quadrant: Quadrant } | null>(null)
-  const [editForm, setEditForm] = useState({ text: '', description: '', deadline: '', isUrgent: false, isImportant: false, recurrence: null as RecurrencePattern, complexity: 'medium' as Complexity })
+  const [editForm, setEditForm] = useState({
+    text: '',
+    description: '',
+    deadline: '',
+    isUrgent: false,
+    isImportant: false,
+    recurrence: { ...defaultRecurrenceForm },
+    complexity: 'medium' as Complexity
+  })
 
   // FAB and Add Task Modal state
   const [isFabOpen, setIsFabOpen] = useState(false)
@@ -142,7 +428,7 @@ You must respond with ONLY a valid JSON object (no markdown, no explanation) wit
   "description": "additional details or empty string if none",
   "deadline": "YYYY-MM-DD format or null if no deadline mentioned",
   "quadrant": "one of: urgent-important, not-urgent-important, urgent-not-important, not-urgent-not-important",
-  "recurrence": "one of: daily, weekly, monthly, yearly, or null if not recurring",
+  "recurrence": <recurrence pattern - see below>,
   "complexity": "one of: easy, medium, hard"
 }
 
@@ -152,12 +438,41 @@ Quadrant rules:
 - "urgent-not-important": Minor urgent items, some calls/emails, interruptions
 - "not-urgent-not-important": Low priority, trivial tasks, entertainment, time wasters
 
-Recurrence detection:
-- "daily": phrases like "every day", "daily", "each day"
-- "weekly": phrases like "every week", "weekly", "each week", "every Monday", "every Friday"
-- "monthly": phrases like "every month", "monthly", "each month"
-- "yearly": phrases like "every year", "yearly", "annually", "each year"
-- null: no recurring pattern detected
+Recurrence detection - return one of these formats:
+
+1. Simple patterns (return string):
+   - "daily": "every day", "daily", "each day"
+   - "weekly": "every week", "weekly", "each week"
+   - "monthly": "every month", "monthly", "each month"
+   - "yearly": "every year", "yearly", "annually"
+
+2. Custom intervals (return object):
+   - "every 2 weeks" or "biweekly" → { "interval": 2, "unit": "week" }
+   - "every 3 days" → { "interval": 3, "unit": "day" }
+   - "every 2 months" → { "interval": 2, "unit": "month" }
+   - "every other day" → { "interval": 2, "unit": "day" }
+
+3. Specific weekdays (return object with weekDays array, 0=Sunday, 6=Saturday):
+   - "every Monday" → { "interval": 1, "unit": "week", "weekDays": [1] }
+   - "every Monday and Wednesday" → { "interval": 1, "unit": "week", "weekDays": [1, 3] }
+   - "every Tuesday, Thursday, Saturday" → { "interval": 1, "unit": "week", "weekDays": [2, 4, 6] }
+   - "weekdays" or "every weekday" → { "interval": 1, "unit": "week", "weekDays": [1, 2, 3, 4, 5] }
+   - "weekends" → { "interval": 1, "unit": "week", "weekDays": [0, 6] }
+
+4. Specific day of month (return object with monthDay):
+   - "15th of every month" → { "interval": 1, "unit": "month", "monthDay": 15 }
+   - "1st of each month" → { "interval": 1, "unit": "month", "monthDay": 1 }
+   - "every month on the 20th" → { "interval": 1, "unit": "month", "monthDay": 20 }
+
+5. No recurrence: return null
+
+Examples:
+- "Call mom every Sunday" → { "interval": 1, "unit": "week", "weekDays": [0] }
+- "Pay rent on the 1st of every month" → { "interval": 1, "unit": "month", "monthDay": 1 }
+- "Team standup every weekday" → { "interval": 1, "unit": "week", "weekDays": [1, 2, 3, 4, 5] }
+- "Gym every other day" → { "interval": 2, "unit": "day" }
+- "Water plants every 3 days" → { "interval": 3, "unit": "day" }
+- "Biweekly payroll" → { "interval": 2, "unit": "week" }
 
 Complexity rules:
 - "easy": Quick tasks (< 15 min), simple actions, minimal thinking required
@@ -178,7 +493,7 @@ Respond with ONLY the JSON object.`
         model: 'gpt-3.5-turbo',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0,
-        max_tokens: 200
+        max_tokens: 300
       })
 
       const result = response.choices[0].message.content?.trim()
@@ -189,15 +504,59 @@ Respond with ONLY the JSON object.`
         description: string
         deadline: string | null
         quadrant: Quadrant
-        recurrence: RecurrencePattern
+        recurrence: TaskRecurrence | string | { interval: number; unit: string; weekDays?: number[]; monthDay?: number } | null
         complexity: Complexity
       }
 
       const validQuadrants: Quadrant[] = ['urgent-important', 'not-urgent-important', 'urgent-not-important', 'not-urgent-not-important']
       const quadrant = validQuadrants.includes(parsed.quadrant) ? parsed.quadrant : 'not-urgent-not-important'
 
-      const validRecurrences: RecurrencePattern[] = ['daily', 'weekly', 'monthly', 'yearly', null]
-      const recurrence = validRecurrences.includes(parsed.recurrence) ? parsed.recurrence : null
+      // Validate recurrence - can be legacy string or flexible config
+      const validateRecurrence = (rec: unknown): TaskRecurrence => {
+        if (rec === null || rec === undefined) return null
+
+        // Legacy string pattern
+        if (typeof rec === 'string') {
+          const validLegacy: LegacyRecurrencePattern[] = ['daily', 'weekly', 'monthly', 'yearly']
+          return validLegacy.includes(rec as LegacyRecurrencePattern)
+            ? rec as LegacyRecurrencePattern
+            : null
+        }
+
+        // Flexible config object
+        if (typeof rec === 'object') {
+          const config = rec as Partial<RecurrenceConfig>
+
+          if (typeof config.interval !== 'number' || config.interval < 1) return null
+
+          const validUnits: RecurrenceUnit[] = ['day', 'week', 'month', 'year']
+          if (!validUnits.includes(config.unit as RecurrenceUnit)) return null
+
+          const validated: RecurrenceConfig = {
+            interval: Math.max(1, Math.min(99, Math.floor(config.interval))),
+            unit: config.unit as RecurrenceUnit
+          }
+
+          if (Array.isArray(config.weekDays) && config.weekDays.length > 0) {
+            const validDays = config.weekDays.filter(
+              d => typeof d === 'number' && d >= 0 && d <= 6
+            ) as DayOfWeek[]
+            if (validDays.length > 0) {
+              validated.weekDays = [...new Set(validDays)].sort((a, b) => a - b)
+            }
+          }
+
+          if (typeof config.monthDay === 'number' && config.monthDay >= 1 && config.monthDay <= 31) {
+            validated.monthDay = config.monthDay
+          }
+
+          return validated
+        }
+
+        return null
+      }
+
+      const recurrence = validateRecurrence(parsed.recurrence)
 
       const validComplexities: Complexity[] = ['easy', 'medium', 'hard']
       const complexity = validComplexities.includes(parsed.complexity) ? parsed.complexity : 'medium'
@@ -291,14 +650,22 @@ Respond with ONLY the JSON object.`
       deadline: task.deadline || '',
       isUrgent,
       isImportant,
-      recurrence: task.recurrence || null,
+      recurrence: parseRecurrenceToFormState(task.recurrence || null),
       complexity: task.complexity || 'medium'
     })
   }
 
   const closeEditModal = () => {
     setEditingTask(null)
-    setEditForm({ text: '', description: '', deadline: '', isUrgent: false, isImportant: false, recurrence: null, complexity: 'medium' })
+    setEditForm({
+      text: '',
+      description: '',
+      deadline: '',
+      isUrgent: false,
+      isImportant: false,
+      recurrence: { ...defaultRecurrenceForm },
+      complexity: 'medium'
+    })
   }
 
   const saveTaskEdit = () => {
@@ -320,12 +687,13 @@ Respond with ONLY the JSON object.`
       newQuadrant = 'not-urgent-not-important'
     }
 
+    const builtRecurrence = buildRecurrenceConfig(editForm.recurrence)
     const updatedTask: Task = {
       ...editingTask.task,
       text: editForm.text.trim(),
       description: editForm.description.trim() || undefined,
       deadline: editForm.deadline || undefined,
-      recurrence: editForm.recurrence || undefined,
+      recurrence: builtRecurrence || undefined,
       complexity: editForm.complexity
     }
 
@@ -647,16 +1015,181 @@ Only respond with the JSON array, nothing else.`
               <div className="form-group">
                 <label>Recurrence</label>
                 <select
-                  value={editForm.recurrence || ''}
-                  onChange={(e) => setEditForm({ ...editForm, recurrence: (e.target.value || null) as RecurrencePattern })}
+                  value={editForm.recurrence.enabled
+                    ? (editForm.recurrence.preset || 'custom')
+                    : 'none'}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (value === 'none') {
+                      setEditForm({
+                        ...editForm,
+                        recurrence: { ...defaultRecurrenceForm }
+                      })
+                    } else if (value === 'custom') {
+                      setEditForm({
+                        ...editForm,
+                        recurrence: {
+                          ...editForm.recurrence,
+                          enabled: true,
+                          preset: 'custom'
+                        }
+                      })
+                    } else {
+                      const unitMap: Record<string, RecurrenceUnit> = {
+                        daily: 'day',
+                        weekly: 'week',
+                        monthly: 'month',
+                        yearly: 'year'
+                      }
+                      setEditForm({
+                        ...editForm,
+                        recurrence: {
+                          enabled: true,
+                          preset: value as 'daily' | 'weekly' | 'monthly' | 'yearly',
+                          interval: 1,
+                          unit: unitMap[value],
+                          weekDays: [],
+                          monthDay: null,
+                          useSpecificMonthDay: false
+                        }
+                      })
+                    }
+                  }}
                   className="recurrence-select"
                 >
-                  <option value="">None</option>
+                  <option value="none">Does not repeat</option>
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
                   <option value="monthly">Monthly</option>
                   <option value="yearly">Yearly</option>
+                  <option value="custom">Custom...</option>
                 </select>
+
+                {/* Custom recurrence options */}
+                {editForm.recurrence.enabled && editForm.recurrence.preset === 'custom' && (
+                  <div className="recurrence-custom">
+                    <div className="recurrence-interval">
+                      <span>Every</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="99"
+                        value={editForm.recurrence.interval}
+                        onChange={(e) => setEditForm({
+                          ...editForm,
+                          recurrence: {
+                            ...editForm.recurrence,
+                            interval: Math.max(1, parseInt(e.target.value) || 1)
+                          }
+                        })}
+                        className="interval-input"
+                      />
+                      <select
+                        value={editForm.recurrence.unit}
+                        onChange={(e) => setEditForm({
+                          ...editForm,
+                          recurrence: {
+                            ...editForm.recurrence,
+                            unit: e.target.value as RecurrenceUnit,
+                            weekDays: [],
+                            monthDay: null,
+                            useSpecificMonthDay: false
+                          }
+                        })}
+                        className="unit-select"
+                      >
+                        <option value="day">day(s)</option>
+                        <option value="week">week(s)</option>
+                        <option value="month">month(s)</option>
+                        <option value="year">year(s)</option>
+                      </select>
+                    </div>
+
+                    {/* Weekday selector for weekly recurrence */}
+                    {editForm.recurrence.unit === 'week' && (
+                      <div className="weekday-selector">
+                        <label>On these days:</label>
+                        <div className="weekday-buttons">
+                          {DAY_LETTERS.map((day, index) => (
+                            <button
+                              key={index}
+                              type="button"
+                              className={`weekday-btn ${
+                                editForm.recurrence.weekDays.includes(index as DayOfWeek)
+                                  ? 'selected'
+                                  : ''
+                              }`}
+                              onClick={() => {
+                                const currentDays = editForm.recurrence.weekDays
+                                const newDays = currentDays.includes(index as DayOfWeek)
+                                  ? currentDays.filter(d => d !== index)
+                                  : [...currentDays, index as DayOfWeek].sort((a, b) => a - b)
+                                setEditForm({
+                                  ...editForm,
+                                  recurrence: {
+                                    ...editForm.recurrence,
+                                    weekDays: newDays
+                                  }
+                                })
+                              }}
+                            >
+                              {day}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Month day selector for monthly recurrence */}
+                    {editForm.recurrence.unit === 'month' && (
+                      <div className="monthday-selector">
+                        <label className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={editForm.recurrence.useSpecificMonthDay}
+                            onChange={(e) => setEditForm({
+                              ...editForm,
+                              recurrence: {
+                                ...editForm.recurrence,
+                                useSpecificMonthDay: e.target.checked,
+                                monthDay: e.target.checked
+                                  ? (editForm.recurrence.monthDay || 1)
+                                  : null
+                              }
+                            })}
+                          />
+                          On specific day of month
+                        </label>
+                        {editForm.recurrence.useSpecificMonthDay && (
+                          <select
+                            value={editForm.recurrence.monthDay || 1}
+                            onChange={(e) => setEditForm({
+                              ...editForm,
+                              recurrence: {
+                                ...editForm.recurrence,
+                                monthDay: parseInt(e.target.value)
+                              }
+                            })}
+                            className="monthday-select"
+                          >
+                            {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                              <option key={day} value={day}>
+                                {day}{getOrdinalSuffix(day)}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Recurrence preview */}
+                {editForm.recurrence.enabled && (
+                  <div className="recurrence-preview">
+                    {getRecurrenceDescription(buildRecurrenceConfig(editForm.recurrence))}
+                  </div>
+                )}
               </div>
               <div className="form-group">
                 <label>Complexity</label>

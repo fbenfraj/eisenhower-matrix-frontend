@@ -207,6 +207,114 @@
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+/* Recurrence Custom Section */
+.recurrence-custom {
+  margin-top: 12px;
+  padding: 12px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recurrence-interval {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recurrence-interval span {
+  color: #4b5563;
+  font-size: 0.9rem;
+}
+
+.interval-input {
+  width: 60px;
+  padding: 8px;
+  text-align: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.unit-select {
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background-color: white;
+  cursor: pointer;
+}
+
+/* Weekday Selector */
+.weekday-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.weekday-selector label {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.weekday-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.weekday-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #e5e7eb;
+  border-radius: 50%;
+  background-color: white;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6b7280;
+  transition: all 0.2s;
+}
+
+.weekday-btn:hover {
+  border-color: #6366f1;
+  color: #6366f1;
+}
+
+.weekday-btn.selected {
+  background-color: #6366f1;
+  border-color: #6366f1;
+  color: white;
+}
+
+/* Month Day Selector */
+.monthday-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.monthday-select {
+  padding: 8px 12px;
+  max-width: 120px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background-color: white;
+  cursor: pointer;
+}
+
+/* Recurrence Preview */
+.recurrence-preview {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background-color: #eef2ff;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #4f46e5;
+}
+
 .quadrant li.completed .task-text {
   text-decoration: line-through;
   opacity: 0.5;
