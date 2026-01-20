@@ -349,22 +349,6 @@ Respond with ONLY the JSON object.`
     closeEditModal()
   }
 
-  const deleteAllTasks = () => {
-    const confirmDelete = window.confirm(
-      'Are you sure you want to delete ALL tasks? This action cannot be undone.'
-    )
-
-    if (confirmDelete) {
-      setTasks({
-        'urgent-important': [],
-        'not-urgent-important': [],
-        'urgent-not-important': [],
-        'not-urgent-not-important': []
-      })
-    }
-    setIsFabOpen(false)
-  }
-
   const autoSortWithAI = async () => {
     setIsFabOpen(false)
 
@@ -567,10 +551,6 @@ Only respond with the JSON array, nothing else.`
             <button className="fab-menu-item ai" onClick={autoSortWithAI} disabled={isAiSorting}>
               <span className="fab-menu-icon">AI</span>
               <span>{isAiSorting ? 'Sorting...' : 'Auto Sort'}</span>
-            </button>
-            <button className="fab-menu-item delete" onClick={deleteAllTasks}>
-              <span className="fab-menu-icon">×</span>
-              <span>Delete All</span>
             </button>
           </div>
         )}
