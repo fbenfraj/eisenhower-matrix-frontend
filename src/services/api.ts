@@ -124,3 +124,90 @@ export async function sortTasksWithAI(tasks: TaskForSort[]): Promise<SortedTaskR
   }
   return response.json()
 }
+
+export interface NotificationSettings {
+  notificationsEnabled: boolean
+  reminderTime: string
+  timezone: string
+}
+
+export async function getNotificationSettings(): Promise<NotificationSettings> {
+  const response = await fetch(`${API_BASE}/api/settings/notifications`, {
+    headers: getAuthHeaders()
+  })
+  if (!response.ok) {
+    handleUnauthorized(response)
+    throw new Error('Failed to get notification settings')
+  }
+  return response.json()
+}
+
+export async function updateNotificationSettings(settings: Partial<NotificationSettings>): Promise<NotificationSettings> {
+  const response = await fetch(`${API_BASE}/api/settings/notifications`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(settings),
+  })
+  if (!response.ok) {
+    handleUnauthorized(response)
+    throw new Error('Failed to update notification settings')
+  }
+  return response.json()
+}
+
+export interface YesterdayStats {
+  yesterdayCount: number
+  yesterdayXp: number
+  doCount: number
+}
+
+export async function getYesterdayStats(): Promise<YesterdayStats> {
+  const response = await fetch(`${API_BASE}/api/push/stats/yesterday`, {
+    headers: getAuthHeaders()
+  })
+  if (!response.ok) {
+    handleUnauthorized(response)
+    throw new Error('Failed to get yesterday stats')
+  }
+  return response.json()
+}
+
+export interface PushSubscriptionKeys {
+  p256dh: string
+  auth: string
+}
+
+export async function subscribeToPush(endpoint: string, keys: PushSubscriptionKeys, userAgent?: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/push/subscribe`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ endpoint, keys, userAgent }),
+  })
+  if (!response.ok) {
+    handleUnauthorized(response)
+    throw new Error('Failed to subscribe to push')
+  }
+}
+
+export async function unsubscribeFromPush(endpoint?: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/push/unsubscribe`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ endpoint }),
+  })
+  if (!response.ok) {
+    handleUnauthorized(response)
+    throw new Error('Failed to unsubscribe from push')
+  }
+}
+
+export async function sendTestPush(): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/push/test`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  })
+  if (!response.ok) {
+    handleUnauthorized(response)
+    throw new Error('Failed to send test push')
+  }
+}

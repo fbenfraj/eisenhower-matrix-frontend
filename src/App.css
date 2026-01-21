@@ -707,6 +707,14 @@
   cursor: not-allowed;
 }
 
+.fab-menu-item.settings {
+  background-color: #64748b;
+  color: white;
+}
+.fab-menu-item.settings:hover {
+  background-color: #475569;
+}
+
 .fab-menu-item.delete {
   background-color: #ef4444;
   color: white;
@@ -1216,4 +1224,149 @@
     bottom: calc(24px + env(safe-area-inset-bottom));
     right: calc(24px + env(safe-area-inset-right));
   }
+}
+
+/* Yesterday Recap Banner */
+.yesterday-recap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background-color: #eef2ff;
+  border-bottom: 1px solid #c7d2fe;
+  flex-shrink: 0;
+}
+
+.recap-text {
+  font-size: 0.85rem;
+  color: #4f46e5;
+  font-weight: 500;
+}
+
+.recap-dismiss {
+  background: none;
+  border: none;
+  color: #6366f1;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.recap-dismiss:hover {
+  opacity: 1;
+}
+
+/* Settings Modal */
+.settings-modal {
+  max-width: 360px;
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-error {
+  background-color: #fee2e2;
+  color: #dc2626;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.ios-warning {
+  background-color: #fef3c7;
+  color: #92400e;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-section h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #374151;
+}
+
+.settings-note {
+  color: #6b7280;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: #374151;
+}
+
+.settings-toggle input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #6366f1;
+  cursor: pointer;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-field label {
+  font-size: 0.85rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.settings-field input,
+.settings-field select {
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background-color: white;
+}
+
+.settings-field input:focus,
+.settings-field select:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.settings-test-btn {
+  align-self: flex-start;
+  padding: 8px 16px;
+  background-color: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.settings-test-btn:hover:not(:disabled) {
+  background-color: #4f46e5;
+}
+
+.settings-test-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

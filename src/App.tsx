@@ -14,8 +14,11 @@ import {
   FAB,
   FilterBar,
   QuadrantView,
-  SuggestionsCard
+  SettingsModal,
+  SuggestionsCard,
+  YesterdayRecap
 } from './components'
+import { useNotificationEligibility } from './hooks/useNotificationEligibility'
 
 interface EditFormState {
   text: string
@@ -56,6 +59,13 @@ function App() {
 
   const { isMobile, expandedQuadrants, toggleQuadrantExpand, expandQuadrant } = useMobile()
   const { logout } = useAuth()
+  const { recordTaskAdded, recordTaskCompleted } = useNotificationEligibility()
+
+  const [isFabOpen, setIsFabOpen] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [addInput, setAddInput] = useState('')
+  const [xpToast, setXpToast] = useState<number | null>(null)
 
   useEffect(() => {
     if (!isLoading && totalTasks > 0) {
@@ -69,11 +79,6 @@ function App() {
       return () => clearTimeout(timer)
     }
   }, [xpToast])
-
-  const [isFabOpen, setIsFabOpen] = useState(false)
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [addInput, setAddInput] = useState('')
-  const [xpToast, setXpToast] = useState<number | null>(null)
 
   const [editingTask, setEditingTask] = useState<{ task: Task; quadrant: Quadrant } | null>(null)
   const [editForm, setEditForm] = useState<EditFormState>({
@@ -104,6 +109,7 @@ function App() {
       setAddInput('')
       setShowAddModal(false)
       expandQuadrant(quadrant)
+      recordTaskAdded()
     }
   }
 
@@ -179,10 +185,16 @@ function App() {
     logout()
   }
 
+  const handleOpenSettings = () => {
+    setIsFabOpen(false)
+    setShowSettings(true)
+  }
+
   const handleToggleComplete = async (quadrant: Quadrant, taskId: number) => {
     const xpGained = await toggleComplete(quadrant, taskId)
     if (xpGained) {
       setXpToast(xpGained)
+      recordTaskCompleted()
     }
   }
 
@@ -204,6 +216,7 @@ function App() {
         </div>
       ) : (
         <>
+          <YesterdayRecap />
           {suggestions.length > 0 && (
             <SuggestionsCard
               suggestions={suggestions}
@@ -244,6 +257,7 @@ function App() {
         onToggle={() => setIsFabOpen(!isFabOpen)}
         onAddTask={openAddModal}
         onAutoSort={handleAutoSort}
+        onSettings={handleOpenSettings}
         onLogout={handleLogout}
       />
 
@@ -283,6 +297,11 @@ function App() {
           onClose={closeEditModal}
         />
       )}
+
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
     </div>
   )
 }
